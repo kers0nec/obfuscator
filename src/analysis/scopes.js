@@ -1,8 +1,9 @@
 export class Symbol {
-  constructor(name, kind, scope) {
+  constructor(name, kind, scope, node) {
     this.original = name;
     this.kind = kind;
     this.scope = scope;
+    this.node = node;
     this.obfuscated = null;
   }
 }
@@ -21,42 +22,94 @@ export class Scope {
   }
 }
 
-const isId = n => n && n.type === "Identifier";
+const isNode = n => n && typeof n === "object" && !Array.isArray(n);
+const isId = n => isNode(n) && n.type === "Identifier";
 
 export function analyzeScopes(ast) {
   const root = new Scope();
   const symbols = [];
+  const refs = [];
 
   function define(scope, node, kind) {
-    if (!isId(node)) return;
-    const s = new Symbol(node.name, kind, scope);
-    scope.define(s); symbols.push(s);
+    if (!isId(node)) return null;
+    const s = new Symbol(node.name, kind, scope, node);
+    scope.define(s);
+    symbols.push(s);
+    return s;
+  }
+
+  function walkList(list, scope) {
+    for (const node of list || []) walk(node, scope);
   }
 
   function walk(node, scope) {
-    if (!node || typeof node !== "object") return;
-    if (Array.isArray(node)) { for (const x of node) walk(x, scope); return; }
+    if (!node) return;
+    if (Array.isArray(node)) return walkList(node, scope);
+    if (!isNode(node)) return;
 
-    if (node.type === "LocalStatement") {
-      for (const v of node.variables || []) define(scope, v, "local");
-    }
-    if (node.type === "FunctionDeclaration") {
-      for (const p of node.parameters || []) define(scope, p, "parameter");
-      const child = new Scope(scope); scope.children.push(child);
-      for (const p of node.parameters || []) {
-        const s = scope.resolve(p.name); if (s) child.define(s);
+    switch (node.type) {
+      case "LocalStatement": {
+        // Lua locals become visible after their initializer.
+        walkList(node.init, scope);
+        for (const v of node.variables || []) define(scope, v, "local");
+        return;
       }
-      for (const [k,v] of Object.entries(node)) {
-        if (k !== "parameters" && k !== "identifier") walk(v, child);
+      case "LocalFunctionStatement":
+        define(scope, node.name, "local-function");
+        walk(node.parameters, scope);
+        walk(node.body, scope);
+        return;
+      case "FunctionDeclaration": {
+        // The declaration name itself is only renamed when it is a local binding.
+        if (node.isLocal && node.identifier) define(scope, node.identifier, "local-function");
+        const child = new Scope(scope);
+        scope.children.push(child);
+        for (const p of node.parameters || []) define(child, p, "parameter");
+        walkList(node.body, child);
+        return;
       }
-      return;
+      case "ForNumericStatement":
+        walk(node.start, scope); walk(node.end, scope); walk(node.step, scope);
+        for (const v of node.variables || []) define(scope, v, "local");
+        walk(node.body, scope);
+        return;
+      case "ForGenericStatement":
+        walkList(node.iterators, scope);
+        for (const v of node.variables || []) define(scope, v, "local");
+        walk(node.body, scope);
+        return;
+      case "Identifier": {
+        // Declarations are handled by their parent nodes.
+        if (!node.__declaration) {
+          const s = scope.resolve(node.name);
+          if (s) refs.push({ node, symbol: s });
+        }
+        return;
+      }
     }
-    for (const [k,v] of Object.entries(node)) {
-      if (k === "loc" || k === "range" || k === "raw") continue;
+
+    for (const [k, v] of Object.entries(node)) {
+      if (k === "loc" || k === "range" || k === "raw" || k === "comments") continue;
+      if (node.type === "MemberExpression" && k === "index" && !node.computed) continue;
       walk(v, scope);
     }
   }
 
+  // Mark declaration identifiers before the reference walk.
+  function markDeclarations(node) {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) { node.forEach(markDeclarations); return; }
+    if (node.type === "LocalStatement") (node.variables || []).forEach(x => x.__declaration = true);
+    if (node.type === "LocalFunctionStatement" && node.name) node.name.__declaration = true;
+    if (node.type === "FunctionDeclaration" && node.isLocal && node.identifier) node.identifier.__declaration = true;
+    if (node.type === "FunctionDeclaration") (node.parameters || []).forEach(x => x.__declaration = true);
+    if (node.type === "ForNumericStatement" || node.type === "ForGenericStatement")
+      (node.variables || []).forEach(x => x.__declaration = true);
+    for (const [k,v] of Object.entries(node)) if (!["loc","range","raw","comments"].includes(k)) markDeclarations(v);
+  }
+
+  markDeclarations(ast);
   walk(ast, root);
-  return { root, symbols };
+
+  return { root, symbols, refs };
 }
