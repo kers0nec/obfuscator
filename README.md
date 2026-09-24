@@ -1,23 +1,32 @@
 # LuaLune
 
-A modular Lua source obfuscator.
+A stronger Lua source-protection pipeline focused on making static inspection harder while preserving normal Lua semantics.
 
-## Pipeline
+## Strong mode
 
-Lua source -> parser -> scope analysis -> identifier mangling -> string encoding -> constant transforms -> emitter.
+The default CLI now enables:
+- scope-aware local/parameter renaming with fresh random identifiers
+- runtime string encoding with per-string random keys/salts
+- integer constant encoding using Lua 5.3 bitwise XOR
+- comment stripping
+- AST-range based source rewriting
 
-## Install
+Usage:
 
 ```bash
 npm install
+node src/cli.js input.lua -o protected.lua
 ```
 
-## Usage
+Options:
 
-```bash
-node src/cli.js input.lua -o protected.lua --rename --strings
+```text
+--no-rename
+--no-strings
+--no-constants
+--keep-comments
 ```
 
-The project is intentionally modular so additional CFG and VM backends can be added without changing the parser/analysis layer.
+> Obfuscation increases reverse-engineering cost; it cannot make code secret from an observer who controls the runtime.
 
-> Obfuscation raises reverse-engineering cost; it cannot make code secret from an observer who controls the runtime.
+LuaLune intentionally avoids debugger-killing, security-tool detection, or other environment-evasion behavior.
