@@ -1,11 +1,12 @@
 {
   "name": "67-obfuscator",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "67 Obfuscator — strong Lua/Luau source protection toolkit.",
   "type": "module",
   "bin": { "67obfuscator": "./src/cli.js" },
   "scripts": {
-    "start": "node src/cli.js",
+    "start": "node src/server.js",
+    "cli": "node src/cli.js",
     "test": "node --test"
   },
   "dependencies": {
