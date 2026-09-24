@@ -54,11 +54,14 @@ export function analyzeScopes(ast) {
         for (const v of node.variables || []) define(scope, v, "local");
         return;
       }
-      case "LocalFunctionStatement":
+      case "LocalFunctionStatement": {
         define(scope, node.name, "local-function");
-        walk(node.parameters, scope);
-        walk(node.body, scope);
+        const child = new Scope(scope);
+        scope.children.push(child);
+        for (const p of node.parameters || []) define(child, p, "parameter");
+        walkList(node.body, child);
         return;
+      }
       case "FunctionDeclaration": {
         // The declaration name itself is only renamed when it is a local binding.
         if (node.isLocal && node.identifier) define(scope, node.identifier, "local-function");
