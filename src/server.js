@@ -19,7 +19,14 @@ const send = (res, status, type, body) => {
 };
 
 async function obfuscateWithClyde(source, options) {
-  const { lex, parseWithErrors, obfuscate, encodeStrings, scrambleControlFlow, printChunk } = await getClyde();
+  const [{ lex }, { parseWithErrors }, { obfuscate }, { encodeStrings }, { scrambleControlFlow }, { printChunk }] = await Promise.all([
+    import("../clyde/src/lexer/Lexer.ts"),
+    import("../clyde/src/parser/Parser.ts"),
+    import("../clyde/src/obfuscator/Obfuscator.ts"),
+    import("../clyde/src/obfuscator/StringEncoder.ts"),
+    import("../clyde/src/obfuscator/ControlFlowScrambler.ts"),
+    import("../clyde/src/obfuscator/Printer.ts")
+  ]);
   const lexed = lex(source);
   if (lexed.errors?.length) throw new Error(lexed.errors[0].message);
   const parsed = parseWithErrors(lexed.tokens);
