@@ -8,7 +8,7 @@ const oi = args.indexOf("-o");
 const output = oi >= 0 ? args[oi + 1] : null;
 
 if (!input) {
-  console.error("Usage: lualune input.lua -o protected.lua [--no-rename] [--no-strings] [--no-constants]");
+  console.error("Usage: 67obfuscator input.lua -o protected.lua [--no-rename] [--no-strings] [--no-constants]");
   process.exit(1);
 }
 
@@ -22,8 +22,8 @@ try {
   });
   const target = output || input.replace(/\.lua$/, ".obf.lua");
   fs.writeFileSync(target, result.output);
-  console.log("LuaLune protected:", target);
+  console.log("67obfuscator protected:", target);
 } catch (err) {
-  console.error("LuaLune error:", err.stack || err.message);
+  console.error("67obfuscator error:", err.stack || err.message);
   process.exit(1);
 }
